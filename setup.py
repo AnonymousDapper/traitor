@@ -1,6 +1,5 @@
 # type: ignore
 
-import re
 from pathlib import Path
 
 from setuptools import setup
@@ -13,7 +12,7 @@ readme = Path("README.md").read_text()
 setup(
     name="traitor",
     author="AnonymousDapper",
-    url="",
+    url="https://gitlab.a-sketchy.site/AnonymousDapper/traitor",
     project_urls={},
     version="0.0.1",
     packages=["traitor", "traitor.traits"],

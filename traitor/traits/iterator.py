@@ -181,19 +181,19 @@ class AdvancedIterator:
         If the last group is less than n elements, it will not be returned.
         """
 
-        for i in range(0, len(self), n):
-            chunk = self[i : i + n]
+        while chunk := list(self.islice(n)):
+            if len(chunk) != n:
+                break
 
-            if len(chunk) == n:
-                yield chunk
+            yield chunk
 
     def chunks(self, n=2):
         """
         Returns an iterator over groups of at most n elements.
         """
 
-        for i in range(0, len(self), n):
-            yield self[i : i + n]
+        while chunk := list(self.islice(n)):
+            yield chunk
 
 
 @impl(AdvancedIterator >> list)

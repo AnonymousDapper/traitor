@@ -8,7 +8,7 @@
 
 from traitor import impl
 from traitor.traits.colored import ColoredString, Colorize
-from traitor.traits.fmt.debug import Debug
+from traitor.traits.debug import Debug
 from traitor.traits.iterator import AdvancedIterator
 
 

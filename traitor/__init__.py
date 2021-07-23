@@ -4,12 +4,15 @@
 
 from __future__ import annotations
 
-__all__ = ("impl", "trait")
+__all__ = ("impl", "trait", "named")
 
 import types
 from functools import wraps
 from inspect import getmembers, isroutine
 from typing import Any, Callable, Generic, Optional, TypeVar
+import operator
+
+from forbiddenfruit import curse, reverse
 
 from fishhook import hook, unhook
 from typing_extensions import ParamSpec
@@ -53,6 +56,13 @@ I = TypeVar("I", bound=type)
 A = ParamSpec("A")
 
 
+class named:
+    def __init__(self, fn):
+        self.__name__ = fn.__name__ # type: ignore
+        self.required = fn.__code__.co_code == NO_BODY_FUNCTION_CODE
+        self.inner = fn
+
+
 class GetAttributeWrapper:
     __slots__ = ("s", "t", "i")
 
@@ -88,14 +98,15 @@ class MethodSentinel(Generic[T]):
         self.__class__.instances[target] = self
 
     def add_impl(self, trait: TraitObject[D], impl):
-        assert trait.inner not in self.traits
+        assert trait.inner not in self.traits, f"{trait} already implemented: {impl}"
 
         for name in trait.trait_methods:
-            if name in self.providers:
-                self.providers[name][trait.inner] = getattr(impl, name)
+            if not name.startswith("__"):
+                if name in self.providers:
+                    self.providers[name][trait.inner] = getattr(impl, name)
 
-            else:
-                self.providers[name] = {trait.inner: getattr(impl, name)}
+                else:
+                    self.providers[name] = {trait.inner: getattr(impl, name)}
 
         self.traits[trait.inner] = impl
 
@@ -158,10 +169,6 @@ class MethodSentinel(Generic[T]):
                 raise RuntimeError(
                     f"Multiple implementations for `{name}` found.\n\n{nl.join(f'#{n} defined in an implementation of {trait} for type `{sentinel.target.__name__}`{sep}Hint: disambiguate the associated method for #{n}: {trait}.into({self!r}).{name}{nl}' for n, trait in impls)}"
                 )
-                # if has_attr:
-                #     msg += f"!! #{len(impls) + 1} is a builtin method, disambiguation required for trait method access\n"
-
-                # raise RuntimeError(msg)
 
         return GET_ATTRIBUTE(self, name)
 
@@ -175,22 +182,36 @@ class TraitObject(Generic[D]):
         "required_methods",
         "fallback_methods",
         "trait_methods",
+        "named_methods",
         "name",
         "inner",
     )
 
     def __init__(self, inner: D, name: str):
-        self.required_methods = tuple(
-            name
-            for name, m in getmembers(inner, isroutine)
-            if not name.startswith("_") and m.__code__.co_code == NO_BODY_FUNCTION_CODE
-        )
+        def get_methods(status_check):
+            return tuple(
+                name
+                for name, m in getmembers(inner, isroutine)
+                if not name.startswith("__")
+                and status_check(m.__code__.co_code, NO_BODY_FUNCTION_CODE)
+            )
 
-        self.fallback_methods = tuple(
-            name
-            for name, m in getmembers(inner, isroutine)
-            if not name.startswith("_") and m.__code__.co_code != NO_BODY_FUNCTION_CODE
-        )
+        def get_named_methods(status_check):
+            return tuple(
+                name
+                for name, m in getmembers(inner, lambda t: t.__class__ == named)
+                if m.required == status_check
+            )
+
+        self.required_methods = get_methods(operator.eq)
+        self.named_methods = get_named_methods(True)
+        self.required_methods += self.named_methods
+
+        self.fallback_methods = get_methods(operator.ne)
+        named_fallbacks = get_named_methods(False)
+
+        self.fallback_methods += named_fallbacks
+        self.named_methods += named_fallbacks
 
         self.trait_methods = self.required_methods + self.fallback_methods
         self.name = name
@@ -207,7 +228,9 @@ class TraitObject(Generic[D]):
 
     def _aggregate_methods(self, impl: type):
         impl_methods = tuple(
-            name for name, _ in getmembers(impl, isroutine) if not name.startswith("_")
+            name for name, _ in getmembers(impl, isroutine) if not name.startswith("__")
+        ) + tuple(
+            name for name, _ in getmembers(impl, lambda t: t.__class__ == named)
         )
 
         optional = set(self.fallback_methods)
@@ -219,12 +242,8 @@ class TraitObject(Generic[D]):
             len(need - (have - optional)) == 0
         )  # this shouldnt ever happen, but we'll see
 
-        # needed, non-covered fallbacks
-        # return impl_methods, tuple(
-        #    (name, self.get_method(name)) for name in optional - have
-        # )
         for method_name in optional - have:
-            setattr(impl, method_name, self._get_method(method_name))
+                setattr(impl, method_name, self._get_method(method_name))
 
     def _check_trait_coverage(self, impl: type):
         impl_methods = tuple(
@@ -311,6 +330,9 @@ class TraitImpl(Generic[D, T, I]):
 
     def apply(self):
         self.trait._aggregate_methods(self.impl)
+
+        for name in self.trait.named_methods:
+            curse(self.target, name, getattr(self.impl, name).inner)
 
         if "__sentinel" not in self.target.__dict__.keys():
             sentinel = MethodSentinel(self.target)

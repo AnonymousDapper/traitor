@@ -2,6 +2,8 @@
 
 # Copyright (c) 2021 AnonymousDapper
 
+# type: ignore
+
 from __future__ import annotations
 
 __all__ = ("Debug",)
@@ -87,13 +89,13 @@ class DebugTraitObject:
             sig = signature(getattr(obj, name))
             sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
 
-            buf.append(f"    {name}{sig}")
+            buf.append(f"  * {name}{sig}")
 
         for name in self.fallback_methods:
             sig = signature(getattr(obj, name))
             sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
 
-            buf.append(f"  * {name}{sig}")
+            buf.append(f"    {name}{sig}")
 
         buf.append(")")
 
