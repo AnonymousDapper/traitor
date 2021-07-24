@@ -8,15 +8,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 __all__ = ("Colorize", "ColoredString", "Style", "Styles", "Color")
 
 from collections import namedtuple
 from enum import Enum
+from functools import wraps
 from re import finditer
+from typing import Optional
 
-from .. import impl, trait
+from .. import Trait, impl, trait
 
 TrueColor = namedtuple("TrueColor", "r g b")
 
@@ -160,6 +160,9 @@ class ColoredString:
     def is_plain(self) -> bool:
         return self.fg_color is None and self.bg_color is None and self.style == Styles.Clear
 
+    def _from(self, text: str) -> ColoredString:
+        return ColoredString(text, fg_color=self.fg_color, bg_color=self.bg_color, style=self.style)
+
     def compute_style(self) -> str:
         if self.is_plain():
             return ""
@@ -213,11 +216,7 @@ class ColoredString:
         return "".join(tmp)
 
     def __repr__(self):
-        return repr(self.inner)
-
-    def __format__(self, spec):
-        self.inner = self.inner.__format__(spec)
-        return str(self)
+        return repr(str(self))
 
     def __str__(self):
         if self.is_plain():
@@ -225,9 +224,283 @@ class ColoredString:
 
         return f"{self.compute_style()}{self.escape_inner_resets()}\x1B[0m"
 
+    @wraps(str.capitalize)
+    def capitalize(self):
+        self.inner = self.inner.capitalize()
+        return self
+
+    @wraps(str.casefold)
+    def casefold(self):
+        self.inner = self.inner.casefold()
+        return self
+
+    @wraps(str.center)
+    def center(self, *args):
+        self.inner = self.inner.center(*args)
+        return self
+
+    @wraps(str.count)
+    def count(self, *args):
+        return self.inner.count(*args)
+
+    @wraps(str.encode)
+    def encode(self, *args, **kwargs):
+        self.inner = self.inner.encode(*args, **kwargs)
+        return self
+
+    @wraps(str.endswith)
+    def endswith(self, *args):
+        return self.inner.endswith(*args)
+
+    @wraps(str.expandtabs)
+    def expandtabs(self, *args, **kwargs):
+        self.inner = self.inner.expandtabs(*args, **kwargs)
+        return self
+
+    @wraps(str.find)
+    def find(self, *args):
+        return self.inner.find(*args)
+
+    @wraps(str.format)
+    def format(self, *args, **kwargs):
+        self.inner = self.inner.format(*args, **kwargs)
+        return self
+
+    @wraps(str.format_map)
+    def format_map(self, mapping):
+        self.inner = self.inner.format_map(mapping)
+        return self
+
+    @wraps(str.index)
+    def index(self, *args):
+        return self.inner.index(*args)
+
+    @wraps(str.isalnum)
+    def isalnum(self):
+        return self.inner.isalnum()
+
+    @wraps(str.isalpha)
+    def isalpha(self):
+        return self.inner.isalpha()
+
+    @wraps(str.isascii)
+    def isascii(self):
+        return self.inner.isascii()
+
+    @wraps(str.isdecimal)
+    def isdecimal(self):
+        return self.inner.isdecimal()
+
+    @wraps(str.isdigit)
+    def isdigit(self):
+        return self.inner.isdigit()
+
+    @wraps(str.isidentifier)
+    def isidentifier(self):
+        return self.inner.isidentifier()
+
+    @wraps(str.islower)
+    def islower(self):
+        return self.inner.islower()
+
+    @wraps(str.isnumeric)
+    def isnumeric(self):
+        return self.inner.isnumeric()
+
+    @wraps(str.isprintable)
+    def isprintable(self):
+        return self.inner.isprintable()
+
+    @wraps(str.isspace)
+    def isspace(self):
+        return self.inner.isspace()
+
+    @wraps(str.istitle)
+    def istitle(self):
+        return self.inner.istitle()
+
+    @wraps(str.isupper)
+    def isupper(self):
+        return self.inner.isupper()
+
+    @wraps(str.join)
+    def join(self, _iter):
+        self.inner = self.inner.join(_iter)
+        return self
+
+    @wraps(str.ljust)
+    def ljust(self, *args):
+        self.inner = self.inner.ljust(*args)
+        return self
+
+    @wraps(str.lower)
+    def lower(self):
+        self.inner = self.inner.lower()
+        return self
+
+    @wraps(str.lstrip)
+    def lstrip(self, *args):
+        self.inner = self.inner.lstrip(*args)
+        return self
+
+    @wraps(str.maketrans)
+    def maketrans(self, *args, **kwargs):
+        self.inner = self.inner.maketrans(*args, **kwargs)
+        return self
+
+    @wraps(str.partition)
+    def partition(self, *args):
+        self.inner = self.inner.partition(*args)
+        return self
+
+    @wraps(str.removeprefix)
+    def removeprefix(self, *args):
+        self.inner = self.inner.removeprefix(*args)
+        return self
+
+    @wraps(str.removesuffix)
+    def removesuffix(self, *args):
+        self.inner = self.inner.removesuffix(*args)
+        return self
+
+    @wraps(str.replace)
+    def replace(self, *args):
+        self.inner = self.inner.replace(*args)
+        return self
+
+    @wraps(str.rfind)
+    def rfind(self, *args):
+        return self.inner.rfind(*args)
+
+    @wraps(str.rindex)
+    def rindex(self, *args):
+        return self.inner.rindex(*args)
+
+    @wraps(str.rjust)
+    def rjust(self, *args):
+        self.inner = self.inner.rjust(*args)
+        return self
+
+    @wraps(str.rpartition)
+    def rpartition(self, *args):
+        self.inner = self.inner.rpartition(*args)
+        return self
+
+    @wraps(str.rsplit)
+    def rsplit(self, *args, **kwargs):
+        return self.inner.rsplit(*args, **kwargs)
+
+    @wraps(str.rstrip)
+    def rstrip(self, *args):
+        self.inner = self.inner.rstrip(*args)
+        return self
+
+    @wraps(str.split)
+    def split(self, *args, **kwargs):
+        return self.inner.split(*args, **kwargs)
+
+    @wraps(str.splitlines)
+    def splitlines(self, *args, **kwargs):
+        return self.inner.splitlines(*args, **kwargs)
+
+    @wraps(str.startswith)
+    def startswith(self, *args):
+        return self.inner.startswith(*args)
+
+    @wraps(str.strip)
+    def strip(self, *args):
+        self.inner = self.inner.strip(*args)
+        return self
+
+    @wraps(str.swapcase)
+    def swapcase(self):
+        self.inner = self.inner.swapcase()
+        return self
+
+    @wraps(str.title)
+    def title(self):
+        self.inner = self.inner.title()
+        return self
+
+    @wraps(str.translate)
+    def translate(self, *args):
+        self.inner = self.inner.translate(*args)
+        return self
+
+    @wraps(str.upper)
+    def upper(self):
+        self.inner = self.inner.upper()
+        return self
+
+    @wraps(str.zfill)
+    def zfill(self, *args):
+        self.inner = self.inner.zfill(*args)
+        return self
+
+    @wraps(str.__format__)
+    def __format__(self, spec):
+        new = self._from(self.inner.__format__(spec))
+        return str(new)
+
+    @wraps(str.__add__)
+    def __add__(self, other):
+        return str(self).__add__(other)
+
+    @wraps(str.__contains__)
+    def __contains__(self, other):
+        return self.inner.__contains__(other)
+
+    @wraps(str.__eq__)
+    def __eq__(self, other):
+        return self.inner.__eq__(other)
+
+    @wraps(str.__ge__)
+    def __ge__(self, other):
+        return self.inner.__ge__(other)
+
+    @wraps(str.__getitem__)
+    def __getitem__(self, other):
+        return self._from(self.inner.__getitem__(other))
+
+    @wraps(str.__gt__)
+    def __gt__(self, other):
+        return self.inner.__gt__(other)
+
+    @wraps(str.__hash__)
+    def __hash__(self):
+        return self.inner.__hash__()
+
+    @wraps(str.__iter__)
+    def __iter__(self):
+        return iter(self._from(char) for char in self.inner.__iter__())
+
+    @wraps(str.__le__)
+    def __le__(self, other):
+        return self.inner.__le__(other)
+
+    @wraps(str.__len__)
+    def __len__(self, other):
+        return self.inner.__len__(other)
+
+    @wraps(str.__lt__)
+    def __lt__(self, other):
+        return self.inner.__lt__(other)
+
+    @wraps(str.__mod__)
+    def __mod__(self, other):
+        return self._from(self.inner.__mod__(other))
+
+    @wraps(str.__mul__)
+    def __mul__(self, other):
+        return self._from(self.inner.__mul__(other))
+
+    @wraps(str.__ne__)
+    def __ne__(self, other):
+        return self.inner.__ne__(other)
+
 
 @trait()
-class Colorize:
+class Colorize(Trait):
     """
     Enables color and style formatting on an object.
     """

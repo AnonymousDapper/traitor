@@ -49,6 +49,12 @@ class Maybe(Generic[A]):
 
         raise ValueError(f"unwrap called on Nothing")
 
+    def fmap(self: Maybe[A], fn: Callable[[A], B]) -> Maybe[B]:
+        if self.is_just():
+            return Just(fn(self.inner))
+
+        return Nothing
+
     def __contains__(self, value):
         if self.is_nothing():
             return False
@@ -77,15 +83,6 @@ Just = Maybe
 class Functor:
     def fmap(self, fn):
         ...
-
-
-@impl(Functor >> Maybe)
-class MaybeFunctor:
-    def fmap(self, fn):
-        if self.is_just():
-            return Just(fn(self.inner))
-
-        return Nothing
 
 
 @impl(Functor >> list)

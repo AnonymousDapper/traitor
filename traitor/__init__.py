@@ -10,10 +10,10 @@ import operator
 import types
 from functools import wraps
 from inspect import getmembers, isroutine
-from typing import Any, Callable, Generic, Optional, TypeVar
+from typing import Any, Callable, Generic, Optional, Protocol, Type, TypeVar
 
 from fishhook import hook, unhook
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, TypeGuard
 
 NO_BODY_FUNCTION_CODE = b"d\x00S\x00"
 
@@ -48,13 +48,22 @@ BUILTIN_TYPES = (
 
 GET_ATTRIBUTE = object.__getattribute__
 
-D = TypeVar("D", bound=type)
+TraitType = TypeVar("TraitType", bound="Trait")
 T = TypeVar("T", bound=type)
 I = TypeVar("I", bound=type)
 A = ParamSpec("A")
 
+S = TypeVar("S")
 
-def derive(*_traits: TraitObject[D]):
+
+def has_trait(value: Any, _trait: TraitObject[TraitType]) -> TypeGuard[TraitType]:
+    if hasattr(value, "__sentinel"):
+        return value.__sentinel.has_impl(_trait)
+
+    return False
+
+
+def derive(*_traits: TraitObject[TraitType]):
     def inner(_type: T) -> T:
         for _trait in _traits:
             if _trait.has_derive:
@@ -67,15 +76,15 @@ def derive(*_traits: TraitObject[D]):
     return inner
 
 
-class GetAttributeWrapper:
+class GetAttributeWrapper(Generic[S]):
     __slots__ = ("s", "t", "i")
 
-    def __init__(self, s: MethodSentinel, t: type, i: Any):
+    def __init__(self, s: MethodSentinel[Type[S]], t: Type[Trait], i: S):
         self.s = s  # sentinel
         self.t = t  # trait
         self.i = i  # value instance
 
-    def __getattr__(self, name: Any):
+    def __getattr__(self, name: str):
 
         return GET_ATTRIBUTE(self, "s").get_impl_method(GET_ATTRIBUTE(self, "t"), name, GET_ATTRIBUTE(self, "i"))
 
@@ -88,32 +97,34 @@ class MethodSentinel(Generic[T]):
     Wrapper object to handle trait method disambiguation
     """
 
-    instances = {}
+    instances: dict[T, MethodSentinel[T]] = {}
 
     __slots__ = ("target", "traits", "providers", "methods")
 
     def __init__(self, target: T):
         self.target = target
-        self.traits: dict[type, type] = {}
-        self.providers: dict[str, dict[type, Callable[[T, *Any], Any]]] = {}
+        self.traits: dict[Trait, type] = {}
+        self.providers: dict[str, dict[Trait, Callable[[T, *Any], Any]]] = {}
         self.methods: set[str] = set()
         self.__class__.instances[target] = self
 
-    def add_impl(self, trait: TraitObject[D], impl):
+    def add_impl(self, trait: TraitObject[TraitType], impl):
         assert trait.inner not in self.traits, f"{trait} already implemented: {impl}"
 
         for name in trait.trait_methods:
+            method = getattr(impl, name)
+
             if name in self.providers:
-                self.providers[name][trait.inner] = getattr(impl, name)
+                self.providers[name][trait.inner] = method
 
             else:
-                self.providers[name] = {trait.inner: getattr(impl, name)}
+                self.providers[name] = {trait.inner: method}
 
         self.traits[trait.inner] = impl
 
         self.methods = set(self.providers.keys())
 
-    def remove_impl(self, trait: TraitObject[D]):
+    def remove_impl(self, trait: TraitObject[TraitType]):
         del self.traits[trait.inner]
 
         for name, data in self.providers.items():
@@ -125,19 +136,22 @@ class MethodSentinel(Generic[T]):
 
         self.methods = set(self.providers.keys())
 
-    def disambiguate_trait(self, trait: type, value):
+    def has_impl(self, trait: TraitObject[Trait]) -> bool:
+        return trait.inner in self.traits
+
+    def disambiguate_trait(self, trait: Type[Trait], value: T) -> GetAttributeWrapper[T]:
         if trait in self.traits:
             return GetAttributeWrapper(self, trait, value)
 
         raise RuntimeError(f"Trait {trait.__name__} not implemented for {self.target.__name__}")
 
-    def get_impl_method(self, trait: type, name: str, instance: Any) -> Callable[[T, *Any], Any]:
+    def get_impl_method(self, trait: Type[Trait], name: str, instance: Any):
         method = self.providers[name][trait]
 
         return method.__get__(instance, instance.__class__)
 
     @classmethod
-    def __call__(cls, self: Any, name: str, *args):
+    def __call__(cls, self: Any, name: str):
         target_class = GET_ATTRIBUTE(self, "__class__")
 
         if target_class in cls.instances:
@@ -167,7 +181,13 @@ class MethodSentinel(Generic[T]):
         return GET_ATTRIBUTE(self, name)
 
 
-class TraitObject(Generic[D]):
+class Trait(Protocol):
+    inner: Trait
+    name: str
+    __name__: str
+
+
+class TraitObject(Generic[TraitType]):
     """
     Container for a declared trait class.
     """
@@ -181,7 +201,7 @@ class TraitObject(Generic[D]):
         "inner",
     )
 
-    def __init__(self, inner: D, name: str):
+    def __init__(self, inner: TraitType, name: str):
         def get_methods(status_check):
             return tuple(
                 name
@@ -190,6 +210,8 @@ class TraitObject(Generic[D]):
             )
 
         setattr(inner, "__name__", name)
+
+        # inner.__bases__ = (Protocol,)
 
         self.required_methods = get_methods(operator.eq)
 
@@ -253,13 +275,13 @@ class TraitObject(Generic[D]):
 
         raise RuntimeError(msg)
 
-    def into(self, value: Any):
+    def into(self, value: S) -> GetAttributeWrapper[S]:
         if hasattr(value, "__sentinel"):
             return getattr(value, "__sentinel").disambiguate_trait(self.inner, value)
 
         raise RuntimeError(f"{self.name} is not implemented for type {value.__class__}")
 
-    def __rshift__(self: TraitObject[D], other: T) -> ImplTarget[D, T]:
+    def __rshift__(self: TraitObject[TraitType], other: T) -> ImplTarget[TraitType, T]:
         if isinstance(other, type):
             return ImplTarget(self, other)
 
@@ -272,14 +294,14 @@ class TraitObject(Generic[D]):
         return self.name
 
 
-class ImplTarget(Generic[D, T]):
+class ImplTarget(Generic[TraitType, T]):
     """
     Simple container to properly apply types to an impl-er and impl-ee.
     """
 
     __slots__ = ("trait", "target")
 
-    def __init__(self, trait: TraitObject[D], target: T):
+    def __init__(self, trait: TraitObject[TraitType], target: T):
         self.trait = trait
         self.target = target
 
@@ -287,14 +309,14 @@ class ImplTarget(Generic[D, T]):
         return f"impl {self.trait!r} for {self.target.__name__}"
 
 
-class TraitImpl(Generic[D, T, I]):
+class TraitImpl(Generic[TraitType, T, I]):
     """
     Container that handles the actual trait implementation.
     """
 
     __slots__ = ("trait", "target", "impl")
 
-    def __init__(self, trait: ImplTarget[D, T], impl: I):
+    def __init__(self, trait: ImplTarget[TraitType, T], impl: I):
         self.trait = trait.trait
         self.target = trait.target
         self.impl = impl
@@ -331,9 +353,9 @@ class TraitImpl(Generic[D, T, I]):
 # user facing functions are here
 
 
-def impl(target: ImplTarget[D, T]):
-    def inner(cls: I) -> TraitImpl[D, T, I]:
-        if type(cls) == TraitImpl:
+def impl(target: ImplTarget[TraitType, T]):
+    def inner(cls: I) -> TraitImpl[TraitType, T, I]:
+        if cls.__class__ == TraitImpl:
             obj = TraitImpl(target, cls.impl)  # type: ignore
             obj.apply()
 
@@ -347,7 +369,7 @@ def impl(target: ImplTarget[D, T]):
 
 
 def trait(name: Optional[str] = None):
-    def inner(cls: D) -> TraitObject[D]:
+    def inner(cls: TraitType) -> TraitObject[TraitType]:
         return TraitObject(cls, name or cls.__name__)
 
     return inner

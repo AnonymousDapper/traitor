@@ -2,9 +2,9 @@
 
 # Copyright (c) 2021 AnonymousDapper
 
-# simple demo of the trait system
-
 # type: ignore
+
+# simple demo of the trait system
 
 from traitor import impl
 from traitor.traits.colored import ColoredString, Colorize

@@ -11,16 +11,14 @@ __all__ = ("AdvancedIterator",)
 import builtins
 import itertools
 import operator
-import sys
-import types
 from collections import deque
 from functools import reduce
 
-from .. import impl, trait
+from .. import Trait, impl, trait
 
 
 @trait()
-class AdvancedIterator:
+class AdvancedIterator(Trait):
     # basics
 
     def map(self, predicate, *iters):

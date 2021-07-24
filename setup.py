@@ -14,7 +14,7 @@ setup(
     author="AnonymousDapper",
     url="https://gitlab.a-sketchy.site/AnonymousDapper/traitor",
     project_urls={},
-    version="0.0.1",
+    version="0.1.0",
     packages=["traitor", "traitor.traits"],
     package_data={},
     license="MIT",

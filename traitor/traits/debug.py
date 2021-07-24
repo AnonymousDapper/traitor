@@ -8,23 +8,15 @@ from __future__ import annotations
 
 __all__ = ("Debug",)
 
-import operator
-from functools import partial
 from inspect import getmembers, isclass, isroutine, signature
 from textwrap import indent
-from types import (
-    BuiltinFunctionType,
-    BuiltinMethodType,
-    FunctionType,
-    MappingProxyType,
-    MethodType,
-)
+from types import BuiltinFunctionType, FunctionType, MappingProxyType, MethodType
 
-from .. import TraitObject, impl, trait
+from .. import Trait, TraitObject, impl, trait
 
 
 @trait()
-class Debug:
+class Debug(Trait):
     def fmt(self) -> str:
         return repr(self)
 
@@ -72,22 +64,10 @@ def maybe_none(item):
 
 
 @impl(Debug >> str)
-class DebugStr:
-    ...
-
-
 @impl(Debug >> int)
-class DebugInt:
-    ...
-
-
 @impl(Debug >> float)
-class DebugFloat:
-    ...
-
-
 @impl(Debug >> bool)
-class DebugBool:
+class DebugDefault:
     ...
 
 
