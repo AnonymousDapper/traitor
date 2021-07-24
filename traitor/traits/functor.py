@@ -22,13 +22,15 @@ class Maybe(Generic[A]):
 
     __created_nothing = False
 
-    def __init__(self, value: A):
+    def __new__(cls, value: A):
         if value is None:
-            if self.__class__.__created_nothing:
-                raise RuntimeError(f"Nothing instance already exists..")
+            if cls.__created_nothing:
+                cls.__created_nothing = True
+                return Nothing
 
-            self.__class__.__created_nothing = True
+        return super().__new__(cls)
 
+    def __init__(self, value: A):
         self.inner = value
 
     @classmethod
@@ -59,6 +61,13 @@ class Maybe(Generic[A]):
 
         return "Nothing"
 
+    def __str__(self):
+        if self.is_just():
+            return f"Just({self.inner!s})"
+
+        return "Nothing"
+
+
 Nothing = Maybe._create_nothing()
 
 Just = Maybe
@@ -69,6 +78,7 @@ class Functor:
     def fmap(self, fn):
         ...
 
+
 @impl(Functor >> Maybe)
 class MaybeFunctor:
     def fmap(self, fn):
@@ -77,10 +87,12 @@ class MaybeFunctor:
 
         return Nothing
 
+
 @impl(Functor >> list)
 class ListFunctor:
     def fmap(self, fn):
         return [None if x is None else fn(x) for x in self]
+
 
 @impl(Functor >> tuple)
 class ListFunctor:

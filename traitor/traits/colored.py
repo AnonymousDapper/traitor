@@ -158,11 +158,7 @@ class ColoredString:
         self.inner = text
 
     def is_plain(self) -> bool:
-        return (
-            self.fg_color is None
-            and self.bg_color is None
-            and self.style == Styles.Clear
-        )
+        return self.fg_color is None and self.bg_color is None and self.style == Styles.Clear
 
     def compute_style(self) -> str:
         if self.is_plain():
@@ -370,6 +366,43 @@ class Colorize:
 
     def on_truecolor(self, r: int, b: int, g: int) -> ColoredString:
         return self.on_color(Color.true_color(TrueColor(r, g, b)))
+
+    @staticmethod
+    def __derive__(klass):
+        @impl(Colorize >> klass)
+        class ColorizeDerive:
+            def color(self, color: Color) -> ColoredString:
+                return ColoredString(str(self), fg_color=color)
+
+            def on_color(self, color: Color) -> ColoredString:
+                return ColoredString(str(self), bg_color=color)
+
+            def clear(self) -> ColoredString:
+                return ColoredString(str(self), style=Styles.Clear)
+
+            def bold(self) -> ColoredString:
+                return ColoredString(str(self)).bold()
+
+            def dimmed(self) -> ColoredString:
+                return ColoredString(str(self)).dimmed()
+
+            def italic(self) -> ColoredString:
+                return ColoredString(str(self)).italic()
+
+            def underline(self) -> ColoredString:
+                return ColoredString(str(self)).underline()
+
+            def blink(self) -> ColoredString:
+                return ColoredString(str(self)).blink()
+
+            def reversed(self) -> ColoredString:
+                return ColoredString(str(self)).reversed()
+
+            def hidden(self) -> ColoredString:
+                return ColoredString(str(self)).hidden()
+
+            def strikethrough(self) -> ColoredString:
+                return ColoredString(str(self)).strikethrough()
 
 
 @impl(Colorize >> ColoredString)

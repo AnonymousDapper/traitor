@@ -19,6 +19,7 @@ setup(
     package_data={},
     license="MIT",
     description="",
+    install_requires=requires,
     long_description=readme,
     long_description_content_type="text/markdown",
     python_requires=">=3.8.0",

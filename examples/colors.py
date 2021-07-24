@@ -1,9 +1,7 @@
 # type: ignore
 
 from traitor import impl, trait
-
-from traitor.traits.colored import Colorize, ColoredString
-
+from traitor.traits.colored import ColoredString, Colorize
 
 print("this is blue".blue())
 
