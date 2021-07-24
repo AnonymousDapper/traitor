@@ -10,9 +10,15 @@ __all__ = ("Debug",)
 
 import operator
 from functools import partial
-from inspect import getmembers, signature, isroutine, isclass
+from inspect import getmembers, isclass, isroutine, signature
 from textwrap import indent
-from types import BuiltinFunctionType, BuiltinMethodType, FunctionType, MappingProxyType, MethodType
+from types import (
+    BuiltinFunctionType,
+    BuiltinMethodType,
+    FunctionType,
+    MappingProxyType,
+    MethodType,
+)
 
 from .. import TraitObject, impl, trait
 
@@ -33,7 +39,12 @@ class Debug:
         def fmt(self):
             buf = [f"{msg}:"]
 
-            data = tuple(filter(lambda p: not p[0].startswith("_"), sorted(getmembers(self), key=lambda p: 1 if isroutine(p[1]) else 0)))
+            data = tuple(
+                filter(
+                    lambda p: not p[0].startswith("_"),
+                    sorted(getmembers(self), key=lambda p: 1 if isroutine(p[1]) else 0),
+                )
+            )
             max_len = max(len(name) for name, _ in data if not isroutine(_))
 
             for name, member in data:
@@ -78,6 +89,7 @@ class DebugFloat:
 @impl(Debug >> bool)
 class DebugBool:
     ...
+
 
 @impl(Debug >> tuple)
 class DebugTuple:
@@ -142,6 +154,7 @@ class DebugFunction:
     def fmt(self):
         return f"{self.__name__}{signature(self)}"
 
+
 @impl(Debug >> MethodType)
 class DebugMethod:
     def fmt(self):
@@ -151,6 +164,7 @@ class DebugMethod:
             return f"classmethod | {msg}"
 
         return msg
+
 
 @impl(Debug >> BuiltinFunctionType)
 class DebugBuiltinFn:

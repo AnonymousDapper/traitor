@@ -4,14 +4,16 @@
 
 # type: ignore
 
-from traitor import trait, impl, derive
-
-from traitor.traits.debug import Debug
-from traitor.traits.colored import Colorize
-
 from dataclasses import dataclass
 
-class A: ...
+from traitor import derive, impl, trait
+from traitor.traits.colored import Colorize
+from traitor.traits.debug import Debug
+
+
+class A:
+    ...
+
 
 @derive(Debug, Colorize)
 @dataclass
@@ -25,10 +27,10 @@ class CFrame(A):
     rz: float
 
     @classmethod
-    def origin(cls) -> 'CFrame':
+    def origin(cls) -> "CFrame":
         ...
 
-    def add(self, other: 'CFrame') -> 'CFrame':
+    def add(self, other: "CFrame") -> "CFrame":
         ...
 
     def translate(self, x: int, y: int, z: int):
@@ -37,6 +39,7 @@ class CFrame(A):
     @staticmethod
     def zero() -> int:
         ...
+
 
 cframe = CFrame(23, 4, 12, 98.2, 110.2, 0.002)
 

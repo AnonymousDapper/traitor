@@ -55,16 +55,16 @@ A = ParamSpec("A")
 
 
 def derive(*_traits: TraitObject[D]):
-        def inner(_type: T) -> T:
-            for _trait in _traits:
-                if _trait.has_derive:
-                    _trait.inner.__derive__(_type) # type: ignore
-                else:
-                    raise TypeError(f"trait {_trait.name} provides no derive functionality")
+    def inner(_type: T) -> T:
+        for _trait in _traits:
+            if _trait.has_derive:
+                _trait.inner.__derive__(_type)  # type: ignore
+            else:
+                raise TypeError(f"trait {_trait.name} provides no derive functionality")
 
-            return _type
-            
-        return inner
+        return _type
+
+    return inner
 
 
 class GetAttributeWrapper:
@@ -198,7 +198,6 @@ class TraitObject(Generic[D]):
         self.trait_methods = self.required_methods + self.fallback_methods
         self.name = name
         self.has_derive = hasattr(inner, "__derive__")
-
 
         self.inner = inner
 
@@ -335,7 +334,7 @@ class TraitImpl(Generic[D, T, I]):
 def impl(target: ImplTarget[D, T]):
     def inner(cls: I) -> TraitImpl[D, T, I]:
         if type(cls) == TraitImpl:
-            obj = TraitImpl(target, cls.impl) # type: ignore
+            obj = TraitImpl(target, cls.impl)  # type: ignore
             obj.apply()
 
         else:
