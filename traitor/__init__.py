@@ -149,12 +149,12 @@ class MethodSentinel(Generic[T]):
 
         self.methods = set(self.providers.keys())
 
-    def has_impl(self, trait: TraitObject[Trait]) -> bool:
-        return trait.inner in self.traits
+    def has_impl(self, trait: Trait) -> bool:
+        return trait in self.traits
 
-    def disambiguate_trait(self, trait: Type[Trait], value: T) -> GetAttributeWrapper[T]:
+    def disambiguate_trait(self, trait: Type[Trait], value: S) -> GetAttributeWrapper[S]:
         if trait in self.traits:
-            return GetAttributeWrapper(self, trait, value)
+            return GetAttributeWrapper(self, trait, value)  # type: ignore
 
         raise RuntimeError(f"Trait {trait.__name__} not implemented for {self.target.__name__}")
 
@@ -208,17 +208,40 @@ class TraitMeta(type):
 
 
 class Trait(object, metaclass=TraitMeta):
-    __name__: str
+    # __name__: str
+    name: str
+    _required_methods: tuple
+    _fallback_methods: tuple
+    _trait_methods: tuple
+    _has_derive: bool
+
+    def __init_subclass__(cls):
+        def get_methods(status_check):
+            return tuple(
+                name
+                for name, m in getmembers(cls, isroutine)
+                if not name.startswith("__") and status_check(m.__code__.co_code, NO_BODY_FUNCTION_CODE)
+            )
+
+        cls._required_methods = get_methods(operator.eq)
+
+        cls._fallback_methods = get_methods(operator.ne)
+
+        cls._trait_methods = cls._required_methods + cls._fallback_methods
+        cls.name = cls.__name__
+        cls._has_derive = hasattr(cls, "__derive__")
 
     @classmethod
     def using(cls, value: S) -> GetAttributeWrapper[S]:
         if hasattr(value, "__sentinel"):
             return getattr(value, "__sentinel").disambiguate_trait(cls, value)
 
-        raise RuntimeError(f"{cls.__name__} is not implemented for type {value.__class__}")
+        val_name = value.__name__ if hasattr(value, "__name__") else value.__class__.__name__  # type: ignore
+
+        raise RuntimeError(f"{cls.name} is not implemented for type {val_name}")
 
     def __str__(self):
-        return self.__name__
+        return self.name
 
 
 class TraitObject(Generic[TraitType]):
@@ -236,20 +259,11 @@ class TraitObject(Generic[TraitType]):
     )
 
     def __init__(self, inner: TraitType):
-        def get_methods(status_check):
-            return tuple(
-                name
-                for name, m in getmembers(inner, isroutine)
-                if not name.startswith("__") and status_check(m.__code__.co_code, NO_BODY_FUNCTION_CODE)
-            )
-
-        self.required_methods = get_methods(operator.eq)
-
-        self.fallback_methods = get_methods(operator.ne)
-
-        self.trait_methods = self.required_methods + self.fallback_methods
-        self.name = inner.__name__
-        self.has_derive = hasattr(inner, "__derive__")
+        self.required_methods = inner._required_methods
+        self.fallback_methods = inner._fallback_methods
+        self.trait_methods = inner._trait_methods
+        self.has_derive = inner._has_derive
+        self.name = inner.name
 
         self.inner = inner
 
@@ -275,10 +289,10 @@ class TraitObject(Generic[TraitType]):
     def _check_trait_coverage(self, impl: type):
         impl_methods = tuple(name for name, _ in getmembers(impl, isroutine) if not name.startswith("_"))
 
-        optional = set(self.fallback_methods)
+        optional = set(self.inner._fallback_methods)
 
         have = set(impl_methods) - optional
-        need = set(self.required_methods)
+        need = set(self.inner._required_methods)
 
         if len(need.symmetric_difference(have)) == 0:
             return True
@@ -386,7 +400,7 @@ def impl(target: ImplTarget[TraitType, T]):
     return inner
 
 
-def trait(name: Optional[str] = None):
+def trait():
     def inner(cls: TraitType) -> TraitObject[TraitType]:
         return TraitObject(cls)
 

@@ -6,10 +6,7 @@
 
 from __future__ import annotations
 
-__all__ = (
-    "From",
-    "Into",
-)
+__all__ = ("From", "Into")
 
 from typing import Type, TypeVar
 
@@ -18,8 +15,6 @@ from .. import Trait, TraitMeta, impl, trait
 T = TypeVar("T", bound=Type)
 
 CLASS_CACHE: dict[str, dict[Type, Type]] = {"Into": {}, "From": {}}
-
-HEX_CHARS = tuple("abcdef")
 
 
 class FromMeta(TraitMeta):
@@ -82,16 +77,21 @@ class Into(Trait, metaclass=IntoMeta):
         return From[self.__class__].using(cls.__target__).from_(self, *args)
 
 
-@impl(From[str] >> float)
-class FloatFromStr:
-    def from_(self, value) -> float:
-        return self(value)
+# These are not impl-ed by default
 
 
-@impl(From[str] >> int)
-class IntFromStr:
-    def from_(self, value) -> int:
-        if any(c.lower() in HEX_CHARS for c in value):
-            return int(value, 16)
+def impl_defaults():
+    HEX_CHARS = tuple("abcdef")
 
-        return int(value, 0)
+    @impl(From[str] >> float)
+    class FloatFromStr:
+        def from_(self, value) -> float:
+            return self(value)
+
+    @impl(From[str] >> int)
+    class IntFromStr:
+        def from_(self, value) -> int:
+            if any(c.lower() in HEX_CHARS for c in value):
+                return int(value, 16)
+
+            return int(value, 0)

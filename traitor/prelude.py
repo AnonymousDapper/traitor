@@ -7,24 +7,27 @@
 from __future__ import annotations
 
 __all__ = (
-    "AdvancedIterator",
+    "derive",
+    "has_trait",
+    "impl",
+    "trait",
     "ColoredString",
     "Colorize",
     "Debug",
-    "derive",
     "Functor",
-    "has_trait",
-    "impl",
     "Just",
     "Maybe",
     "Nothing",
-    "trait",
+    "From",
+    "Into",
+    "AdvancedIterator",
 )
 
 from . import derive, has_trait, impl, trait
 from .traits.colored import ColoredString, Colorize
 from .traits.debug import Debug
 from .traits.functor import Functor, Just, Maybe, Nothing
+from .traits.into import From, Into
 from .traits.iterator import AdvancedIterator
 
 # combo impls

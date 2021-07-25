@@ -26,13 +26,14 @@ class StrFromFoo:
 class FooFromStr:
     def from_(self, value):
         assert self is Foo
+        print(self, value)
         return self(value)
 
 
 # >>>>>>>>
 
-f = Into[Foo].using("asd").into()
-print(f)
+# f = Into[Foo].using("asd").into()
+# print(f)
 
-name = From[Foo].using(str).from_(f)
-print(name)
+# name = From[Foo].using(str).from_(f)
+# print(name)
