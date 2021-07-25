@@ -1,3 +1,7 @@
+# The MIT License (MIT)
+
+# Copyright (c) 2021 AnonymousDapper
+
 # type: ignore
 
 from traitor import impl, trait

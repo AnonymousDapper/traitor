@@ -16,7 +16,7 @@ from functools import wraps
 from re import finditer
 from typing import Optional
 
-from .. import Trait, impl, trait
+from .. import Trait, impl
 
 TrueColor = namedtuple("TrueColor", "r g b")
 
@@ -499,7 +499,6 @@ class ColoredString:
         return self.inner.__ne__(other)
 
 
-@trait()
 class Colorize(Trait):
     """
     Enables color and style formatting on an object.

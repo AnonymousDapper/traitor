@@ -12,10 +12,9 @@ from inspect import getmembers, isclass, isroutine, signature
 from textwrap import indent
 from types import BuiltinFunctionType, FunctionType, MappingProxyType, MethodType
 
-from .. import Trait, TraitObject, impl, trait
+from .. import Trait, TraitObject, impl
 
 
-@trait()
 class Debug(Trait):
     def fmt(self) -> str:
         return repr(self)

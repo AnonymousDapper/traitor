@@ -14,10 +14,9 @@ import operator
 from collections import deque
 from functools import reduce
 
-from .. import Trait, impl, trait
+from .. import Trait, impl
 
 
-@trait()
 class AdvancedIterator(Trait):
     # basics
 

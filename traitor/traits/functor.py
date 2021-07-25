@@ -10,7 +10,7 @@ __all__ = ("Maybe", "Just", "Nothing", "Functor")
 
 from typing import Callable, Generic, Optional, TypeVar
 
-from .. import impl, trait
+from .. import Trait, impl
 
 A = TypeVar("A")
 B = TypeVar("B")
@@ -79,8 +79,7 @@ Nothing = Maybe._create_nothing()
 Just = Maybe
 
 
-@trait()
-class Functor:
+class Functor(Trait):
     def fmap(self, fn):
         ...
 
