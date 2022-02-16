@@ -1,84 +1,45 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 from __future__ import annotations
 
-__all__ = ("impl", "derive", "Trait", "has_trait")
+# __all__ = ("impl", "derive", "Trait", "has_trait")
 
 import operator
 import types
 from functools import wraps
 from inspect import getmembers, isroutine
-from typing import Any, Callable, Generic, Optional, Type, TypeVar, cast
 
-from fishhook import hook, unhook
-from typing_extensions import TypeGuard
+from fishhook import hook
 
 NO_BODY_FUNCTION_CODE = b"d\x00S\x00"
+GET_ATTRIBUTE = type.__getattribute__
+OBJ_GET_ATTRIBUTE = object.__getattribute__
 
-BUILTIN_TYPES = (
-    int,
-    float,
-    str,
-    list,
-    dict,
-    bool,
-    types.FunctionType,
-    types.LambdaType,
-    types.GeneratorType,
-    types.CoroutineType,
-    types.AsyncGeneratorType,
-    types.CodeType,
-    types.CellType,  # type: ignore
-    types.MethodType,
-    types.BuiltinFunctionType,
-    types.BuiltinMethodType,
-    types.WrapperDescriptorType,
-    types.MethodDescriptorType,
-    types.ClassMethodDescriptorType,
-    types.ModuleType,
-    types.GenericAlias,
-    types.TracebackType,
-    types.FrameType,
-    types.GetSetDescriptorType,
-    types.MemberDescriptorType,
-    types.MappingProxyType,
-)
+GENERIC_CACHE = {}
 
-GET_ATTRIBUTE = object.__getattribute__
+@type.__call__
+class NULL: ...
 
-TraitType = TypeVar("TraitType", bound="Trait")
-T = TypeVar("T", bound=type)
-I = TypeVar("I", bound=type)
+def HAS_ATTRIBUTE(obj, key):
+    try:
+        return GET_ATTRIBUTE(obj, key)
 
-S = TypeVar("S")
+    except:
+        return NULL
 
+def OBJ_HAS_ATTRIBUTE(obj, key):
+    try:
+        return OBJ_GET_ATTRIBUTE(obj, key)
 
-def has_trait(value: Any, _trait: TraitObject[TraitType]) -> TypeGuard[TraitType]:
-    if hasattr(value, "__sentinel"):
-        return value.__sentinel.has_impl(_trait)
-
-    return False
-
-
-def derive(*_traits: TraitObject[TraitType]):
-    def inner(_type: T) -> T:
-        for _trait in _traits:
-            if _trait.has_derive:
-                _trait.inner.__derive__(_type)  # type: ignore
-            else:
-                raise TypeError(f"trait {_trait.name} provides no derive functionality")
-
-        return _type
-
-    return inner
+    except:
+        return NULL
 
 
 def check_bind_wrapper(method, instance, klass):
     bound = method.__get__(instance, klass)
-
-    if type(method) == types.MethodType:  # assume it's a classmethod at this point
+    if type(method) == types.MethodType:
 
         @wraps(method)
         def inner(self, *args, **kwargs):
@@ -89,40 +50,16 @@ def check_bind_wrapper(method, instance, klass):
     return bound
 
 
-class GetAttributeWrapper(Generic[S]):
-    __slots__ = ("s", "t", "i")
-
-    def __init__(self, s: MethodSentinel[Type[S]], t: Type[Trait], i: S):
-        self.s = s  # sentinel
-        self.t = t  # trait
-        self.i = i  # value instance
-
-    def __getattr__(self, name: str):
-
-        return GET_ATTRIBUTE(self, "s").get_impl_method(GET_ATTRIBUTE(self, "t"), name, GET_ATTRIBUTE(self, "i"))
-
-    def __repr__(self):
-        return repr(GET_ATTRIBUTE(self, "i"))
-
-
-class MethodSentinel(Generic[T]):
-    """
-    Wrapper object to handle trait method disambiguation
-    """
-
-    instances: dict[T, MethodSentinel[T]] = {}
-
-    __slots__ = ("target", "traits", "providers", "methods")
-
-    def __init__(self, target: T):
+class MethodSentinel:
+    def __init__(self, target: type):
         self.target = target
-        self.traits: dict[Trait, type] = {}
-        self.providers: dict[str, dict[Trait, Callable[[T, *Any], Any]]] = {}
-        self.methods: set[str] = set()
-        self.__class__.instances[target] = self
 
-    def add_impl(self, trait: TraitObject[TraitType], impl):
-        assert trait.inner not in self.traits, f"{trait} already implemented: {impl}"
+        self.traits = {}
+        self.providers = {}
+        self.methods = set()
+
+    def add_impl(self, trait: TraitObject, impl):
+        assert trait.inner not in self.traits, f"existing implementation for {trait} found: {impl}"
 
         for name in trait.trait_methods:
             method = getattr(impl, name)
@@ -134,81 +71,108 @@ class MethodSentinel(Generic[T]):
                 self.providers[name] = {trait.inner: method}
 
         self.traits[trait.inner] = impl
-
         self.methods = set(self.providers.keys())
 
-    def remove_impl(self, trait: TraitObject[TraitType]):
-        del self.traits[trait.inner]
-
-        for name, data in self.providers.items():
-            if trait.inner in data:
-                del data[trait.inner]
-
-            if data == {}:
-                del self.providers[name]
-
-        self.methods = set(self.providers.keys())
+    def remove_impl(self, trait: TraitObject):
+        return NotImplemented
 
     def has_impl(self, trait: Trait) -> bool:
         return trait in self.traits
 
-    def disambiguate_trait(self, trait: Type[Trait], value: S) -> GetAttributeWrapper[S]:
-        if trait in self.traits:
-            return GetAttributeWrapper(self, trait, value)  # type: ignore
+    def get_unbound(self, name):
+        if name in self.methods:
+            if len(self.traits) == 1 or len(self.providers[name]) == 1:
+                return tuple(self.providers[name].values())[0]
 
-        raise RuntimeError(f"Trait {trait.__name__} not implemented for {self.target.__name__}")
+            nl = "\n"
+            s = "\n\t"
 
-    def get_impl_method(self, trait: Type[Trait], name: str, instance: Any):
-        # print("! >", trait, name, instance)
+            impls = (
+                (n, str(trait), self.traits[trait].__name__)
+                for n, trait in enumerate(self.providers[name].keys(), start=1)
+            )
 
-        method = self.providers[name][trait]  # type: ignore
+            raise RuntimeError(
+                f"Multiple implementations of `{name}` for type `{self.target.__name__}` found.\n\n{nl.join(f'#{n} defined in an implementation of `{trait}`: `{impl}`{s}Hint: disambiguate the associated method: {trait}.{name}{nl}' for n, trait, impl in impls)}"
+            )
 
-        return check_bind_wrapper(method, instance, instance.__class__)
+    def __call__(self, val, key):
+        #assert type(val) is self.target, f"Mismatched types: {type(val)} - {self.target} ({val} [{key}])"
 
-    @classmethod
-    def __call__(cls, self: Any, name: str):
-        target_class = GET_ATTRIBUTE(self, "__class__")
+        if (method := OBJ_HAS_ATTRIBUTE(val, key)) is not NULL:
+            return method
 
-        if target_class in cls.instances:
-            sentinel = cls.instances[target_class]
+        if method := self.get_unbound(key):
+            return check_bind_wrapper(method, val, self.target)
 
-            try:
-                GET_ATTRIBUTE(self, name)
-                has_attr = True
-            except:
-                has_attr = False
+        raise AttributeError(key)
 
-            if name in sentinel.methods and not has_attr:
-                if len(sentinel.traits) == 1 or len(sentinel.providers[name]) == 1:
-                    method = tuple(sentinel.providers[name].values())[0]
+    def __repr__(self):
+        return f"MethodSentinel<{self.target.__name__}>"
 
-                    return check_bind_wrapper(method, self, sentinel.target)
 
-                nl = "\n"
-                sep = "\n\t"
+# Root sentinel
+@type.__call__
+class TypeLevelSentinel:
 
-                impls = ((n, str(trait)) for n, trait in enumerate(sentinel.providers[name].keys(), start=1))
+    # prefer builtin-attributes over trait-provided
+    def __call__(self, ty, key):
+        if (method := HAS_ATTRIBUTE(ty, key)) is not NULL:
+            return method
 
-                raise RuntimeError(
-                    f"Multiple implementations for `{name}` found.\n\n{nl.join(f'#{n} defined in an implementation of {trait} for type `{sentinel.target.__name__}`{sep}Hint: disambiguate the associated method for #{n}: {trait}.into({self!r}).{name}{nl}' for n, trait in impls)}"
-                )
+        if (sentinel := HAS_ATTRIBUTE(ty, "__sentinel")) is not NULL:
+            if method := sentinel.get_unbound(key):
+                return method
 
-        return GET_ATTRIBUTE(self, name)
-
+        raise AttributeError(key)
 
 class TraitMeta(type):
-    def __rshift__(cls, other: T) -> ImplTarget[TraitType, T]:
+    def __getitem__(cls, *args):
+        if (cls, args) in GENERIC_CACHE:
+            return GENERIC_CACHE[(cls, args)]
+
+        if hasattr(cls, "__generic__"):
+            new = TraitMeta(cls.__name__, (Trait,), {**cls.__dict__})
+            new.__args__ = new.__generic__(new, *args)
+            
+            # for k, v in new.__dict__.items():
+            #     if type(v) == classmethod:
+            #         setattr(new, k, v.__func__.__get__(new, TraitMeta))
+
+            GENERIC_CACHE[(cls, args)] = new
+
+            return new
+        
+        raise TypeError(f"Trait {cls} defines no generic parameters")
+
+    def __rshift__(cls, other):
         if isinstance(other, type):
             if hasattr(cls, "__reciprocal__"):
-                cls.__reciprocal__(cls, other)  # type: ignore
+                cls.__reciprocal__(cls, other)
 
-            return ImplTarget(TraitObject(cast(TraitType, cls)), other)
+            return ImplTarget(TraitObject(cls), other)
 
         return NotImplemented
 
+    def __repr__(cls):
+        if not hasattr(cls, "__args__"):
+            return cls.__name__
+
+        return f"{cls.name}[{', '.join(ty.__name__ for ty in cls.__args__)}]"
+
+    def __call__(cls, key):
+        if type(key) is type:
+            if hasattr(key, "__sentinel"):
+                if getattr(key, "__sentinel").has_impl(cls):
+                    return getattr(key, "__sentinel").traits[cls]
+
+            else:
+                raise TypeError(f"{cls} is not implemented for {key.__name__}")
+
+        else:
+            raise TypeError("type specification allowed only with types")
 
 class Trait(object, metaclass=TraitMeta):
-    # __name__: str
     name: str
     _required_methods: tuple
     _fallback_methods: tuple
@@ -216,49 +180,38 @@ class Trait(object, metaclass=TraitMeta):
     _has_derive: bool
 
     def __init_subclass__(cls):
-        def get_methods(status_check):
+        def check(m):
+            if hasattr(m, "__code__"):
+                code = m.__code__
+
+            elif hasattr(m, "__func__"):
+                code = m.__func__.__code__
+
+            else:
+                raise RuntimeError(f"Unknown `{m}`: {dir(m)}")
+
+            return code.co_code
+
+        def get_methods(stat):
             return tuple(
                 name
                 for name, m in getmembers(cls, isroutine)
-                if not name.startswith("__") and status_check(m.__code__.co_code, NO_BODY_FUNCTION_CODE)
+                if not name.startswith("__") and stat(check(m), NO_BODY_FUNCTION_CODE)
             )
 
         cls._required_methods = get_methods(operator.eq)
-
         cls._fallback_methods = get_methods(operator.ne)
 
         cls._trait_methods = cls._required_methods + cls._fallback_methods
         cls.name = cls.__name__
         cls._has_derive = hasattr(cls, "__derive__")
 
-    @classmethod
-    def using(cls, value: S) -> GetAttributeWrapper[S]:
-        if hasattr(value, "__sentinel"):
-            return getattr(value, "__sentinel").disambiguate_trait(cls, value)
 
-        val_name = value.__name__ if hasattr(value, "__name__") else value.__class__.__name__  # type: ignore
+# Resolves method discrepancies between a declaration and an implementation
+class TraitObject:
+    __slots__ = "required_methods", "fallback_methods", "trait_methods", "has_derive", "name", "inner"
 
-        raise RuntimeError(f"{cls.name} is not implemented for type {val_name}")
-
-    def __str__(self):
-        return self.name
-
-
-class TraitObject(Generic[TraitType]):
-    """
-    Container for a declared trait class.
-    """
-
-    __slots__ = (
-        "required_methods",
-        "fallback_methods",
-        "trait_methods",
-        "has_derive",
-        "name",
-        "inner",
-    )
-
-    def __init__(self, inner: TraitType):
+    def __init__(self, inner):
         self.required_methods = inner._required_methods
         self.fallback_methods = inner._fallback_methods
         self.trait_methods = inner._trait_methods
@@ -267,32 +220,33 @@ class TraitObject(Generic[TraitType]):
 
         self.inner = inner
 
+
     def _get_method(self, name: str):
         if name in self.trait_methods:
             return getattr(self.inner, name)
 
         raise KeyError(name)
 
-    def _aggregate_methods(self, impl: type):
+    # Copy default impls over to the provided impl
+    def _coalesce_methods(self, impl: type):
         impl_methods = tuple(name for name, _ in getmembers(impl, isroutine) if not name.startswith("__"))
 
         optional = set(self.fallback_methods)
-
         have = set(impl_methods)
         need = set(self.required_methods)
 
-        assert len(need - (have - optional)) == 0  # this shouldnt ever happen, but we'll see
+        assert len(need - (have - optional)) == 0  # assuming we checked before calling this method
 
-        for method_name in optional - have:
-            setattr(impl, method_name, self._get_method(method_name))
+        for name in optional - have:
+            setattr(impl, name, self._get_method(name))
 
-    def _check_trait_coverage(self, impl: type):
+    # Ensure our implementation matches our definition
+    def _check_coverage(self, impl: type):
         impl_methods = tuple(name for name, _ in getmembers(impl, isroutine) if not name.startswith("_"))
 
-        optional = set(self.inner._fallback_methods)
-
+        optional = set(self.fallback_methods)
         have = set(impl_methods) - optional
-        need = set(self.inner._required_methods)
+        need = set(self.required_methods)
 
         if len(need.symmetric_difference(have)) == 0:
             return True
@@ -326,69 +280,51 @@ class TraitObject(Generic[TraitType]):
         return str(self.inner)
 
 
-class ImplTarget(Generic[TraitType, T]):
-    """
-    Simple container to properly apply types to an impl-er and impl-ee.
-    """
+# Simple container
+class ImplTarget:
+    __slots__ = "trait", "target"
 
-    __slots__ = ("trait", "target")
-
-    def __init__(self, trait: TraitObject[TraitType], target: T):
+    def __init__(self, trait, target: type):
         self.trait = trait
         self.target = target
 
     def __repr__(self):
-        return f"impl {self.trait!s} for {self.target.__name__}"
+        return f"<impl of {self.trait!s} for {self.target.__name__}>"
 
 
-class TraitImpl(Generic[TraitType, T, I]):
-    """
-    Container that handles the actual trait implementation.
-    """
+class TraitImpl:
+    __slots__ = "trait", "target", "impl"
 
-    __slots__ = ("trait", "target", "impl")
-
-    def __init__(self, trait: ImplTarget[TraitType, T], impl: I):
-        self.trait = trait.trait
-        self.target = trait.target
+    def __init__(self, target: ImplTarget, impl):
+        self.trait = target.trait
+        self.target = target.target
         self.impl = impl
 
-        self.trait._check_trait_coverage(impl)
+        self.trait._check_coverage(impl)
 
     def apply(self):
-        self.trait._aggregate_methods(self.impl)
+        self.trait._coalesce_methods(self.impl)
 
         if "__sentinel" not in self.target.__dict__.keys():
             sentinel = MethodSentinel(self.target)
 
             @wraps(self.target.__getattribute__)
-            def wrapper(self, name):
-                return sentinel(self, name)
+            def wrapper(o, k):
+                return sentinel(o, k)
 
             hook(self.target, "__sentinel")(sentinel)
-
             hook(self.target, "__getattribute__")(wrapper)
 
-        getattr(self.target, "__sentinel").add_impl(self.trait, self.impl)  # type: ignore
-
-    def revert(self):
-        if type(getattr(self.target, "__sentinel", None)) == MethodSentinel:
-            sentinel = getattr(self.target, "__sentinel")
-            sentinel.remove_impl(self.trait)
-
-            if sentinel.traits == {}:
-
-                unhook(self.target, "__sentinel")
-                unhook(self.target, "__getattribute__")
+        GET_ATTRIBUTE(self.target, "__sentinel").add_impl(self.trait, self.impl)
 
 
-# user facing functions are here
+# user facing functions
 
 
-def impl(target: ImplTarget[TraitType, T]):
-    def inner(cls: I) -> TraitImpl[TraitType, T, I]:
+def impl(target: ImplTarget):
+    def inner(cls):
         if cls.__class__ == TraitImpl:
-            obj = TraitImpl(target, cls.impl)  # type: ignore
+            obj = TraitImpl(target, cls.impl)
 
         else:
             obj = TraitImpl(target, cls)
@@ -399,9 +335,30 @@ def impl(target: ImplTarget[TraitType, T]):
 
     return inner
 
+def derive(*traits: Trait):
+    def inner(ty):
+        for trait in traits:
+            if trait._has_derive: # type: ignore
+                trait.__derive__(ty) # type: ignore
+            else:
+                raise TypeError(f"trait {trait} provides no derive candidate")
 
-def trait():
-    def inner(cls: TraitType) -> TraitObject[TraitType]:
-        return TraitObject(cls)
+        return ty
 
     return inner
+
+def has_trait(value, trait: TraitObject):
+    if hasattr(value, "__sentinel"):
+        return value.__sentinel.has_impl(trait)
+
+    return False
+
+
+
+# bad things here
+@wraps(type.__getattribute__)
+def type_wrapper(t, n):
+    return TypeLevelSentinel(t, n)
+
+
+hook(type, "__getattribute__")(type_wrapper)

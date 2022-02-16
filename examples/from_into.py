@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -18,22 +18,20 @@ class Foo:
 
 @impl(From[Foo] >> str)
 class StrFromFoo:
-    def from_(self, value):
+    def from_(value):
         return value.name[::-1]
 
 
 @impl(From[str] >> Foo)
 class FooFromStr:
-    def from_(self, value):
-        assert self is Foo
-        print(self, value)
-        return self(value)
+    def from_(value):
+        return Foo(value)
 
 
 # >>>>>>>>
 
-# f = Into[Foo].using("asd").into()
-# print(f)
+f = "asd".into()
+print(f)
 
-# name = From[Foo].using(str).from_(f)
-# print(name)
+name = From[Foo](str).from_(f)
+print(name)

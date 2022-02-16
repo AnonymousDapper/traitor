@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -159,7 +159,7 @@ class AdvancedIterator(Trait):
         iterables = (self, *iters)
 
         num_active = len(iterables)
-        nexsts = itertools.cycle(iter(it).__next__ for it in iterables)
+        nexts = itertools.cycle(iter(it).__next__ for it in iterables)
         while num_active:
             try:
                 for next in nexts:

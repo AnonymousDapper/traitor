@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -8,73 +8,30 @@ from __future__ import annotations
 
 __all__ = ("From", "Into")
 
-from typing import Type, TypeVar
+from .. import Trait, impl
 
-from .. import Trait, TraitMeta, impl, trait
+class From(Trait):
+    def __generic__(cls, source: type):
+        cls.source = source
 
-T = TypeVar("T", bound=Type)
+        return [source] # TODO: make this neater
 
-CLASS_CACHE: dict[str, dict[Type, Type]] = {"Into": {}, "From": {}}
+    def __reciprocal__(cls, ty):
+        impl(Into[ty] >> cls.source)(
+            type(f"Auto{cls.source.__name__.title()}Into{ty.__name__.title()}", tuple(), {}))
 
+    def from_(val): ...
 
-class FromMeta(TraitMeta):
-    __name__: str
+class Into(Trait):
+    def __generic__(cls, target: type):
+        cls.target = target
 
-    def __getitem__(cls, key):
-        if key in CLASS_CACHE["From"]:
-            return CLASS_CACHE["From"][key]
+        return [target]
 
-        new = FromTMeta(f"From{key.__name__.title()}", (From,), {**cls.__dict__, "__target__": key})
-
-        CLASS_CACHE["From"][key] = new
-
-        return new
-
-
-class FromTMeta(FromMeta):
-    def __repr__(cls):
-        return f"From[{cls.__target__.__name__}]"  # type: ignore
-
-    def __getitem__(cls, _):
-        return NotImplemented
-
-
-class IntoMeta(TraitMeta):
-    __name__: str
-
-    def __getitem__(cls, key):
-        if key in CLASS_CACHE["Into"]:
-            return CLASS_CACHE["Into"][key]
-
-        new = IntoTMeta(f"Into{key.__name__.title()}", (Into,), {**cls.__dict__, "__target__": key})
-
-        CLASS_CACHE["Into"][key] = new
-
-        return new
-
-
-class IntoTMeta(IntoMeta):
-    def __repr__(cls):
-        return f"Into[{cls.__target__.__name__}]"  # type: ignore
-
-    def __getitem__(cls, _):
-        return NotImplemented
-
-
-class From(Trait, metaclass=FromMeta):
-    def from_(self, value) -> T:
-        ...
-
-    def __reciprocal__(cls, _type):
-        impl(Into[_type] >> cls.__target__)(
-            type(f"Auto{cls.__target__.__name__.title()}Into{_type.__name__.title()}", tuple(), {})
-        )
-
-
-class Into(Trait, metaclass=IntoMeta):
     @classmethod
-    def into(cls, self, *args) -> T:
-        return From[self.__class__].using(cls.__target__).from_(self, *args)
+    def into(cls, val):
+        return From[val.__class__](cls.target).from_(val)
+
 
 
 # These are not impl-ed by default

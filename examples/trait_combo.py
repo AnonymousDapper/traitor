@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -8,9 +8,9 @@
 
 from traitor import impl
 from traitor.traits.colored import ColoredString, Colorize
-from traitor.traits.debug import Debug
 from traitor.traits.functor import Functor, Just, Maybe
 from traitor.traits.iterator import AdvancedIterator
+from traitor.traits.debug import Debug
 
 
 @impl(Debug >> ColoredString)
@@ -26,7 +26,7 @@ class DebugMaybe:
 
 
 def get_color(s):
-    return getattr(s, s.strip())
+    return getattr(s, s)
 
 
 colors = (

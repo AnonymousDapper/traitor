@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -10,7 +10,6 @@ __all__ = (
     "derive",
     "has_trait",
     "impl",
-    "trait",
     "ColoredString",
     "Colorize",
     "Debug",
@@ -21,11 +20,13 @@ __all__ = (
     "From",
     "Into",
     "AdvancedIterator",
+    "Default",
 )
 
-from . import derive, has_trait, impl, trait
+from . import derive, has_trait, impl
 from .traits.colored import ColoredString, Colorize
 from .traits.debug import Debug
+from .traits.default import Default
 from .traits.functor import Functor, Just, Maybe, Nothing
 from .traits.into import From, Into
 from .traits.iterator import AdvancedIterator

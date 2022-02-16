@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -8,34 +8,24 @@ from __future__ import annotations
 
 __all__ = ("Maybe", "Just", "Nothing", "Functor")
 
-from typing import Callable, Generic, Optional, TypeVar
 
 from .. import Trait, impl
 
-A = TypeVar("A")
-B = TypeVar("B")
+class Maybe:
+    __nothing = None
+    def __new__(cls, value):
 
-
-class Maybe(Generic[A]):
-
-    inner: Optional[A]
-
-    __created_nothing = False
-
-    def __new__(cls, value: A):
         if value is None:
-            if cls.__created_nothing:
-                cls.__created_nothing = True
-                return Nothing
+            if not cls.__nothing:
+                cls.__nothing = super().__new__(cls)
+                cls.__nothing.inner = None
 
-        return super().__new__(cls)
+            return cls.__nothing
 
-    def __init__(self, value: A):
+        self = super().__new__(cls)
         self.inner = value
 
-    @classmethod
-    def _create_nothing(cls):
-        return cls(None)
+        return self
 
     def is_just(self):
         return self.inner is not None
@@ -49,11 +39,6 @@ class Maybe(Generic[A]):
 
         raise ValueError(f"unwrap called on Nothing")
 
-    def fmap(self: Maybe[A], fn: Callable[[A], B]) -> Maybe[B]:
-        if self.is_just():
-            return Just(fn(self.inner))
-
-        return Nothing
 
     def __contains__(self, value):
         if self.is_nothing():
@@ -74,14 +59,28 @@ class Maybe(Generic[A]):
         return "Nothing"
 
 
-Nothing = Maybe._create_nothing()
+@type.__call__
+class Nothing(Maybe):
+    def __new__(cls):
+        return super().__new__(cls, None)
 
-Just = Maybe
+class Just(Maybe):
+    def __init__(self, _):
+        assert self.is_just()
 
 
 class Functor(Trait):
     def fmap(self, fn):
         ...
+
+
+@impl(Functor >> Maybe)
+class MaybeFunctor:
+    def fmap(self, fn):
+        if self.is_just():
+            return Just(fn(self.inner))
+
+        return Nothing
 
 
 @impl(Functor >> list)

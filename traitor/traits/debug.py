@@ -1,6 +1,6 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
@@ -12,7 +12,7 @@ from inspect import getmembers, isclass, isroutine, signature
 from textwrap import indent
 from types import BuiltinFunctionType, FunctionType, MappingProxyType, MethodType
 
-from .. import Trait, TraitObject, impl
+from .. import Trait, TraitObject, TraitMeta, impl
 
 
 class Debug(Trait):
@@ -40,7 +40,7 @@ class Debug(Trait):
 
             for name, member in data:
                 if isinstance(member, (FunctionType, MethodType, BuiltinFunctionType)):
-                    buf.append(f"  {Debug.into(member).fmt()}")
+                    buf.append(f"  {Debug(member.__class__).fmt(member)}")
 
                 else:
                     header = f"  {name:{max_len}} = "
@@ -59,7 +59,7 @@ def check_indent(text, n=2):
 
 
 def maybe_none(item):
-    return "None" if item is None else Debug.into(item).fmt()
+    return "None" if item is None else Debug(item.__class__).fmt(item)
 
 
 @impl(Debug >> str)
@@ -76,8 +76,8 @@ class DebugTuple:
         if len(self) == 0:
             return "( )"
 
-        if len(self) < 5:
-            return repr(self)
+        # if len(self) < 5:
+        #    return repr(self)
 
         buf = ["("]
 
@@ -115,10 +115,15 @@ class DebugDict:
         buf = ["{"]
 
         data = tuple(self.items())
-        key_len = max(len(key) for key, _ in data)
+
+        # headers = [check_indent(maybe_none(k)) for k, _ in data]
+
+        # key_len = max(len(line.strip()) for line in headers)
+        # print(key_len)
+        # print([k for k in headers if len(k) == key_len][0])
 
         for k, v in data:
-            header = f"  {check_indent(maybe_none(k)):{key_len + 2}}"
+            header = f"  {check_indent(maybe_none(k))}"
             header_len = max(len(line) for line in header.splitlines())
 
             buf.append(f"{header}: {check_indent(maybe_none(v), header_len + 2)},")
@@ -137,7 +142,7 @@ class DebugFunction:
 @impl(Debug >> MethodType)
 class DebugMethod:
     def fmt(self):
-        msg = Debug.into(self.__func__).fmt()
+        msg = Debug(self.__func__.__class__).fmt(self.__func__)
 
         if isclass(self.__self__):
             return f"classmethod | {msg}"
@@ -160,13 +165,39 @@ class DebugTraitObject:
 
         for name in self.required_methods:
             sig = signature(getattr(obj, name))
-            sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
+            #sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
 
             buf.append(f"  {name}{sig}")
 
         for name in self.fallback_methods:
             sig = signature(getattr(obj, name))
-            sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
+            #sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
+
+            buf.append(f" *{name}{sig}")
+
+        buf.append("}")
+
+        return "\n".join(buf)
+
+
+@impl(Debug >> TraitMeta)
+class DebugTrait:
+    def fmt(self):
+        buf = [f"trait {self.name} {{"]
+
+        for name in self._required_methods:
+            sig = signature(getattr(self, name))
+            #sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
+
+            buf.append(f"  {name}{sig}")
+
+        for name in self._fallback_methods:
+            item = getattr(self, name)
+            if type(item) == classmethod:
+                item = item.__func__
+
+            sig = signature(item)
+            #sig = sig.replace(parameters=tuple(sig.parameters.values())[1:])
 
             buf.append(f" *{name}{sig}")
 
@@ -186,18 +217,18 @@ class DebugObj:
 # There be dragons here...
 
 # IMPORTANT: this needs to match the manual implementations down below
-IMPLEMENTED_TYPES = {type, str, int, float, bool, list, dict, type(None)}
+# IMPLEMENTED_TYPES = {type, str, int, float, bool, list, dict, type(None)}
 
 
-def derive_all():
-    def format_wrapper(self):
-        return repr(self)
+# def derive_all():
+#     def format_wrapper(self):
+#         return repr(self)
 
-    # WARNING: very sensitive - arbitrary things cause this to break
-    for _type in object.__subclasses__():
-        if _type not in IMPLEMENTED_TYPES and _type.__module__ not in ("fishhook"):
-            if _type.__module__.startswith("traitor"):
-                continue
+#     # WARNING: very sensitive - arbitrary things cause this to break
+#     for _type in object.__subclasses__():
+#         if _type not in IMPLEMENTED_TYPES and _type.__module__ not in ("fishhook"):
+#             if _type.__module__.startswith("traitor"):
+#                 continue
 
-            # print(f"{_type.__name__}: {_type.__module__}")
-            impl(Debug >> _type)(type(f"Debug{_type.__name__.title()}", (object,), {"fmt": format_wrapper}))
+#             # print(f"{_type.__name__}: {_type.__module__}")
+#             impl(Debug >> _type)(type(f"Debug{_type.__name__.title()}", (object,), {"fmt": format_wrapper}))

@@ -1,10 +1,10 @@
 # The MIT License (MIT)
 
-# Copyright (c) 2021 AnonymousDapper
+# Copyright (c) 2022 AnonymousDapper
 
 # type: ignore
 
-from traitor import impl, trait
+from traitor import impl
 from traitor.traits.colored import ColoredString, Colorize
 
 print("this is blue".blue())
