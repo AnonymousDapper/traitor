@@ -639,7 +639,7 @@ class Colorize(Trait):
     def on_truecolor(self, r: int, b: int, g: int) -> ColoredString:
         return self.on_color(Color.true_color(TrueColor(r, g, b)))
 
-    @staticmethod
+    #@staticmethod
     def __derive__(klass):
         @impl(Colorize >> klass)
         class ColorizeDerive:

@@ -37,17 +37,17 @@ class Into(Trait):
 # These are not impl-ed by default
 
 
-def impl_defaults():
+def __():
     HEX_CHARS = tuple("abcdef")
 
     @impl(From[str] >> float)
     class FloatFromStr:
-        def from_(self, value) -> float:
-            return self(value)
+        def from_(value) -> float:
+            return float(value)
 
     @impl(From[str] >> int)
     class IntFromStr:
-        def from_(self, value) -> int:
+        def from_(value) -> int:
             if any(c.lower() in HEX_CHARS for c in value):
                 return int(value, 16)
 

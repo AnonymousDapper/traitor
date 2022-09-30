@@ -19,7 +19,7 @@ class Debug(Trait):
     def fmt(self) -> str:
         return repr(self)
 
-    @staticmethod
+    #@staticmethod
     def __derive__(klass):
         bases = tuple(filter(lambda c: c is not object, klass.__bases__))
         msg = f"class {klass.__name__}"
